@@ -35,7 +35,10 @@ define inline_script choose_img
 	___prepare__
 	folder = os.path.join(exp.experiment_path, u'images')
 	images = os.listdir(folder)
-	img_path = os.path.join(folder, random.choice(images))
+	while True:
+		img_path = os.path.join(folder, random.choice(images))
+		if img_path.lower().endswith(u'.png'):
+			break
 	__end__
 
 define sketchpad demo_selection
@@ -158,6 +161,8 @@ define inline_script scotoma_script
 		if 'escape' in l:
 			raise Exception('Demo aborted')
 		x, y = exp.pygaze_eyetracker.sample()	
+		if x < 10 and y < 10:
+			continue
 		x -= xc
 		y = -(y-yc)
 		sct.pos = x, y
@@ -203,6 +208,8 @@ define inline_script window_script
 		if 'escape' in l:
 			raise Exception('Demo aborted')
 		x, y = exp.pygaze_eyetracker.sample()	
+		if x < 10 and y < 10:
+			continue
 		x -= xc
 		y = -(y-yc)
 		apt.setPos( (x, y) )
