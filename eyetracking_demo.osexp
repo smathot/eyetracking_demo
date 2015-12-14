@@ -1,0 +1,221 @@
+---
+API: 2
+OpenSesame: 3.0.4
+Platform: nt
+---
+set width 1024
+set uniform_coordinates "no"
+set transparent_variables "no"
+set title "Eye-tracking demonstration"
+set synth_backend "legacy"
+set subject_parity "even"
+set subject_nr 0
+set start "experiment"
+set sampler_backend "legacy"
+set mouse_backend "psycho"
+set keyboard_backend "psycho"
+set height 768
+set foreground "white"
+set font_size 18
+set font_italic "no"
+set font_family "mono"
+set font_bold "no"
+set description "A template containing a practice and an experimental phase"
+set coordinates "relative"
+set compensation 0
+set color_backend "psycho"
+set clock_backend "legacy"
+set canvas_backend "psycho"
+set bidi "no"
+set background "black"
+
+define inline_script choose_img
+	set description "Executes Python code"
+	set _run ""
+	___prepare__
+	folder = os.path.join(exp.experiment_path, u'images')
+	images = os.listdir(folder)
+	img_path = os.path.join(folder, random.choice(images))
+	__end__
+
+define sketchpad demo_selection
+	set duration 0
+	set description "Displays stimuli"
+	draw textline center=1 color=white font_bold=no font_family=sans font_italic=no font_size=32 html=yes show_if=always text="Which demo do you want to do?<br /><br />1) Drawing with the eyes<br />2) Gaze-contingent window<br />3) Simulated scotoma<br /><br />Press 1, 2, or 3 to select<br /><br />(During the demonstration, press space<br />to switch to a new picture, and escape<br />to cancel)" x=0 y=0 z_index=0
+
+define sequence experiment
+	set flush_keyboard "yes"
+	set description "The main sequence of the experiment"
+	run init always
+	run pygaze_init always
+	run demo_selection always
+	run keyboard_response always
+	run sketchpad always
+	run painting_script "[response] = 1"
+	run window_loop "[response] = 2"
+	run scotoma_loop "[response] = 3"
+
+define inline_script init
+	set description "Executes Python code"
+	___run__
+	from psychopy import visual, event
+	import os
+	import random
+	import numpy as np
+	xc = self.get('width')/2
+	yc = self.get('height')/2
+	__end__
+	set _prepare ""
+
+define keyboard_response keyboard_response
+	set timeout "infinite"
+	set flush "yes"
+	set duration "keypress"
+	set description "Collects keyboard responses"
+	set allowed_responses "1;2;3"
+
+define inline_script painting_script
+	set description "Executes Python code"
+	___run__
+	vertices = []
+	
+	r = 0
+	g = 0
+	b = 0
+	f = .1
+	
+	while True:
+		l = event.getKeys()
+		if 'space' in l:
+			vertices = []
+		if 'escape' in l:
+			raise Exception('Demo aborted')	
+		x, y = exp.pygaze_eyetracker.sample()
+		if x < 10 and y < 10:
+			continue
+		x = x-xc
+		y = yc-y	
+		if len(vertices) > 0:
+			d = np.sqrt((vertices[-1][0]-x)**2 + (vertices[-1][1]-y)**2)
+			if d < 10:
+				continue
+		r += np.random.random()*f - .5*f
+		r = min(1, max(-1, r))
+		g += np.random.random()*f - .5*f
+		g = min(1, max(-1, g))
+		b += np.random.random()*f - .5*f
+		b = min(1, max(-1, b))				
+		vertices.append( [x, y] )
+		visual.ShapeStim(win, lineWidth=8, lineColor=(r, g, b),
+			vertices=vertices, closeShape=False).draw()
+		win.flip()
+	__end__
+	set _prepare ""
+
+define pygaze_init pygaze_init
+	set tracker_type "Advanced dummy (mouse simulation)"
+	set smi_send_port 4444
+	set smi_recv_port 5555
+	set smi_ip "127.0.0.1"
+	set sacc_vel_thr 35
+	set sacc_acc_thr 9500
+	set eyelink_pupil_size_mode "area"
+	set eyelink_force_drift_correct "yes"
+	set description "Initialize and calibrate eye tracker"
+	set calibrate "yes"
+	set calbeep "yes"
+	set _logfile "automatic"
+
+define pygaze_start_recording pygaze_start_recording
+	set status_msg "start_trial"
+	set description "Puts the eye tracker into recording mode"
+
+define pygaze_stop_recording pygaze_stop_recording
+	set status_msg "stop_trial"
+	set description "Stops recording of eye tracking data"
+
+define loop scotoma_loop
+	set skip 0
+	set repeat 100
+	set order "random"
+	set offset "no"
+	set item "scotoma_sequence"
+	set description "Repeatedly runs another item"
+	set cycles 1
+	set column_order ""
+	set break_if "never"
+	run scotoma_sequence
+
+define inline_script scotoma_script
+	set description "Executes Python code"
+	___run__
+	img = visual.ImageStim(win, img_path)
+	sct = visual.GratingStim(win, size=256, tex=None, mask='raisedCos', color=0)
+	while True:
+		l = event.getKeys()
+		if 'space' in l:
+			break
+		if 'escape' in l:
+			raise Exception('Demo aborted')
+		x, y = exp.pygaze_eyetracker.sample()	
+		x -= xc
+		y = -(y-yc)
+		sct.pos = x, y
+		img.draw()	
+		sct.draw()
+		win.flip()
+	__end__
+	set _prepare ""
+
+define sequence scotoma_sequence
+	set flush_keyboard "yes"
+	set description "Runs a number of items in sequence"
+	run pygaze_start_recording always
+	run choose_img always
+	run scotoma_script always
+	run pygaze_stop_recording always
+
+define sketchpad sketchpad
+	set duration 0
+	set description "Displays stimuli"
+
+define loop window_loop
+	set skip 0
+	set repeat 100
+	set order "random"
+	set offset "no"
+	set item "window_sequence"
+	set description "A loop containing one or more practice blocks"
+	set cycles 1
+	set column_order ""
+	set break_if "never"
+	run window_sequence
+
+define inline_script window_script
+	set description "Executes Python code"
+	___run__
+	img = visual.ImageStim(win, img_path)
+	apt = visual.Aperture(win, size=64)
+	while True:
+		l = event.getKeys()
+		if 'space' in l:
+			break
+		if 'escape' in l:
+			raise Exception('Demo aborted')
+		x, y = exp.pygaze_eyetracker.sample()	
+		x -= xc
+		y = -(y-yc)
+		apt.setPos( (x, y) )
+		img.draw()	
+		win.flip()
+	__end__
+	set _prepare ""
+
+define sequence window_sequence
+	set flush_keyboard "yes"
+	set description "A sequence containing a single block of trials followed by feedback to the participant"
+	run pygaze_start_recording always
+	run choose_img always
+	run window_script always
+	run pygaze_stop_recording always
+
